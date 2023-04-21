@@ -1,20 +1,92 @@
-import { Hono } from 'hono'
+import { Hono, HonoRequest } from 'hono'
 
-const app = new Hono()
+type Bindings = {
+  ISR_CACHE: KVNamespace
+}
 
-app.get('/todos', async (c) => {
-  const cacheUrl = new URL(c.req.url)
-  if (cacheUrl.port === '8787') {
-    cacheUrl.port = '3000'
+const app = new Hono<{ Bindings: Bindings }>()
+
+const createOriginRequest = (req: HonoRequest<any>, pathname?: string) => {
+  const originUrl = new URL(req.url)
+  if (originUrl.port === '8787') {
+    originUrl.port = '3000'
   }
 
-	const request = new Request(
-    cacheUrl.toString(),
+  if (pathname) {
+    originUrl.pathname = pathname
+  }
+
+	return new Request(
+    originUrl.toString(),
     {
-      headers: c.req.headers,
-      body: c.req.body
+      headers: req.headers,
+      body: req.body
     }
   )
+}
+
+const restoreResponse = ({ body, headers }: { body: string, headers: HeadersInit, }) => {
+  return new Response(body, { headers })
+}
+
+const createCache = async (CACHE_KV: KVNamespace, cacheKey: Request, response: Response) => {
+  const cacheTtl = new Date()
+  cacheTtl.setSeconds(cacheTtl.getSeconds() + 60)
+
+  const headerJson: {[key: string]: string} = {}
+  response.headers.forEach((value, key) => headerJson[key] = value)
+
+  await CACHE_KV.put(
+    `${cacheKey.url}`,
+    JSON.stringify({
+      headers: headerJson,
+      body: await response.text(),
+      cacheTtl: cacheTtl.getTime(),
+    }),
+    {
+      expirationTtl: 60 * 60 * 24 * 365
+    }
+  )
+}
+
+app.get('/isr_todos', async (c) => {
+  const request = createOriginRequest(c.req, '/todos')
+
+  const cacheResponseJson = await c.env.ISR_CACHE.get<{
+    headers: HeadersInit,
+    body: string,
+    cacheTtl: number,
+  }>(
+    `${request.url}`,
+    { type: 'json' }
+  )
+
+  let response: Response
+  let isCreateCache = false
+
+  if (!cacheResponseJson) {
+    console.log(`no KV Cache hit for: ${request.url}.`)
+    response = await fetch(request)
+    isCreateCache = true
+  } else {
+    console.log(`KV Cache hit for: ${request.url}.`)
+
+    response = restoreResponse(cacheResponseJson)
+    if (new Date().getTime() > cacheResponseJson.cacheTtl) {
+      console.log(`KV Cache has expired.`)
+      isCreateCache = true
+    }
+  }
+
+  if (isCreateCache) {
+    c.executionCtx.waitUntil(createCache(c.env.ISR_CACHE, request, response.clone() ?? await fetch(request)))
+  }
+
+  return response
+})
+
+app.get('/todos', async (c) => {
+	const request = createOriginRequest(c.req)
 
   const cache = caches.default
 

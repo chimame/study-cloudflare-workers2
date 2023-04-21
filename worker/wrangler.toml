@@ -1,3 +1,7 @@
 name = "app"
 main = "src/index.ts"
 compatibility_date = "2023-04-21"
+
+kv_namespaces = [
+  { binding = "ISR_CACHE", id = "e8e59b3fae1444578681ae4e02d5eb48", preview_id = "9770ea1c0d8b4d259d9236e431b036aa" }
+]
