@@ -1,7 +1,6 @@
 FROM node:18.14-alpine3.17 as base
 
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN npm install -g pnpm
 
 WORKDIR /app
 
@@ -11,13 +10,12 @@ USER nextjs
 
 FROM base AS deps
 
-# Install dependencies based on the preferred package manager
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm i --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
 RUN mkdir prisma
 COPY ./prisma/schema.prisma ./prisma
-RUN pnpx prisma generate
+RUN npx prisma generate
 
 # Rebuild the source code only when needed
 FROM deps AS builder
@@ -31,7 +29,7 @@ COPY --chown=nextjs:nodejs . .
 
 ENV NODE_ENV production
 RUN ls -la /app && whoami
-RUN pnpm build
+RUN npm run build
 
 # If using npm comment out above and use below instead
 # RUN npm run build
@@ -43,4 +41,4 @@ EXPOSE 3000
 
 ENV PORT 3000
 
-CMD ["pnpm", "run", "sart"]
+CMD ["npm", "run", "sart"]

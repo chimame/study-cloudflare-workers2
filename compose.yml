@@ -1,8 +1,10 @@
 services:
   app:
     build:
+      target: base
       context: ./origin
-    command: pnpm run dev
+    entrypoint: script/docker-entrypoint.sh
+    command: npm run dev
     volumes:
       - ./origin:/app:cached
     ports:

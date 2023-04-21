@@ -11,7 +11,7 @@ gcloud config set project $GCP_PROJECT_ID
 gcloud builds submit . --config=./cloudbuild.yml --substitutions=TAG_NAME=$CI_COMMIT_SHA
 
 # execute database migrate
-pnpx prisma migrate deploy
+npx prisma migrate deploy
 
 # deploy application
 gcloud run deploy todo-nextjs \
