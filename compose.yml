@@ -13,6 +13,8 @@ services:
       - db
     tty: false
     stdin_open: true
+    environment:
+      - DATABASE_URL=postgres://postgres:password@db:5432/postgres
   db:
     image: postgres:15.1-alpine3.17
     volumes:
